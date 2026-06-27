@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oganesson Box</title>
+  <style>
+    :root {
+      --red: #ff2a2a;
+      --red-soft: #ff6a5a;
+      --red-deep: #8a0010;
+      --bg: #06030a;
+      --glass: rgba(40, 8, 14, 0.42);
+      --glass-border: rgba(255, 80, 80, 0.28);
+      --text: #ffe8e6;
+      --text-dim: rgba(255, 200, 195, 0.65);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+      user-select: none;
+    }
+
+    /* Fond dégradé ambiant rougeoyant */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 10%, rgba(180, 20, 30, 0.25), transparent 55%),
+        radial-gradient(ellipse at 80% 90%, rgba(120, 0, 20, 0.30), transparent 55%),
+        radial-gradient(circle at 50% 50%, rgba(255, 60, 60, 0.04), transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #scene {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+    #scene canvas { display: block; }
+
+    /* ---------- En-tête ---------- */
+    .header {
+      position: fixed;
+      top: 24px;
+      left: 28px;
+      z-index: 10;
+      display: none; /* masqué : logo + titre */
+      align-items: center;
+      gap: 14px;
+      pointer-events: none;
+    }
+    .logo {
+      width: 46px; height: 46px;
+      border-radius: 14px;
+      background: radial-gradient(circle at 35% 30%, #ff7a6a, #c40016 60%, #5a0008);
+      box-shadow:
+        0 0 24px rgba(255, 40, 40, 0.7),
+        inset 0 0 12px rgba(255, 200, 200, 0.4);
+      position: relative;
+    }
+    .logo::after {
+      content: "Og";
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      letter-spacing: -0.5px;
+    }
+    .title h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(120deg, #fff, var(--red-soft));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .title p {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 2px;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+    }
+
+    /* ---------- Panneau de contrôle ---------- */
+    #panel {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 10;
+      width: 290px;
+      padding: 22px 22px 20px;
+      background: var(--glass);
+      backdrop-filter: blur(22px) saturate(140%);
+      -webkit-backdrop-filter: blur(22px) saturate(140%);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      display: none; /* masqué : Simulation Controls */
+    }
+    #panel::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--red-soft), transparent);
+      opacity: 0.7;
+    }
+
+    .panel-title {
+      font-size: 11px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--red-soft);
+      margin-bottom: 18px;
+    }
+
+    .control { margin-bottom: 16px; }
+    .control:last-child { margin-bottom: 0; }
+
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 7px;
+      letter-spacing: 0.3px;
+    }
+    .control label b {
+      color: var(--text);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--red-deep), rgba(255,255,255,0.08));
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #ff9080, var(--red));
+      border: 2px solid rgba(255, 230, 225, 0.85);
+      box-shadow: 0 0 12px rgba(255, 40, 40, 0.8);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.18); }
+
+    /* Toggle */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+    .toggle-row span { font-size: 12px; color: var(--text-dim); }
+    .switch {
+      position: relative;
+      width: 40px; height: 22px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.25s;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: #ffd9d4;
+      transition: transform 0.25s cubic-bezier(.5,1.6,.5,1);
+    }
+    .switch.on {
+      background: linear-gradient(90deg, var(--red-deep), var(--red));
+      border-color: var(--red);
+    }
+    .switch.on::after { transform: translateX(18px); }
+
+    /* Bouton reset */
+    button {
+      width: 100%;
+      padding: 11px;
+      margin-top: 6px;
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(255,60,60,0.18), rgba(140,0,16,0.12));
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: linear-gradient(180deg, rgba(255,60,60,0.35), rgba(180,0,20,0.25));
+      box-shadow: 0 0 22px rgba(255, 40, 40, 0.45);
+      transform: translateY(-1px);
+    }
+    button:active { transform: translateY(0); }
+
+    /* ---------- Footer info ---------- */
+    .footer {
+      position: fixed;
+      bottom: 20px;
+      left: 28px;
+      z-index: 10;
+      display: none; /* masqué : badges du bas */
+      align-items: center;
+      gap: 18px;
+      pointer-events: none;
+    }
+    .badge {
+      padding: 8px 14px;
+      background: var(--glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+    }
+    .badge b { color: var(--red-soft); font-weight: 700; }
+    .badge.fps b { color: var(--text); }
+
+    .badge.level b#levelLabel {
+      color: var(--text);
+      transition: color 0.3s;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 20px;
+      right: 28px;
+      z-index: 10;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.8px;
+      pointer-events: none;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div id="scene"></div>
+
+  <!-- En-tête -->
+  <div class="header">
+    <div class="logo"></div>
+    <div class="title">
+      <h1>Oganesson Box</h1>
+      <p>Atomic Interaction Visualizer</p>
+    </div>
+  </div>
+
+  <!-- Panneau de contrôle -->
+  <div id="panel">
+    <div class="panel-title">Simulation Controls</div>
+
+    <div class="control">
+      <label>Number of atoms <b id="countVal">28</b></label>
+      <input type="range" id="count" min="2" max="80" step="1" value="28" />
+    </div>
+
+    <div class="control">
+      <label>Temperature <b id="tempVal">1.00</b></label>
+      <input type="range" id="temp" min="0" max="3" step="0.05" value="1" />
+    </div>
+
+    <div class="control">
+      <label>Interaction strength <b id="interVal">1.00</b></label>
+      <input type="range" id="inter" min="0" max="3" step="0.05" value="1" />
+    </div>
+
+    <div class="control">
+      <label>Glow (bloom) <b id="glowVal">0.80</b></label>
+      <input type="range" id="glow" min="0" max="3" step="0.05" value="0.8" />
+    </div>
+
+    <div class="control">
+      <div class="toggle-row">
+        <span>Auto-rotate</span>
+        <div class="switch on" id="rotate"></div>
+      </div>
+    </div>
+
+    <button id="reset">Reset</button>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="badge">Element <b>Og · 118</b></div>
+    <div class="badge">Noble gas · synthetic</div>
+    <div class="badge level">View: <b id="levelLabel">Atoms</b></div>
+    <div class="badge fps"><b id="fps">— fps</b></div>
+  </div>
+
+  <div class="hint">Drag to orbit · Scroll to zoom in & reveal subatomic structure</div>
+
+  <!-- Three.js via importmap (CDN) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

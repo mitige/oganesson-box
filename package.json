@@ -1,0 +1,15 @@
+{
+  "name": "oganesson-box",
+  "version": "1.0.0",
+  "description": "Visualisation 3D esthétique d'atomes d'oganesson interagissant dans une boîte",
+  "main": "main.js",
+  "author": "ZCode",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}
