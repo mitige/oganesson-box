@@ -9,24 +9,24 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#06030a',
+    backgroundColor: '#0b0d10',
     title: 'Oganesson Box',
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
     }
   });
 
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-  // Lissage et meilleur rendu
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.show();
   });
 
-  // Ferme proprement
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
