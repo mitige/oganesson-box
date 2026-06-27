@@ -1,15 +1,26 @@
 {
   "name": "oganesson-box",
   "version": "1.0.0",
-  "description": "Visualisation 3D esthétique d'atomes d'oganesson interagissant dans une boîte",
+  "description": "Sober scientific Electron/Three.js visualizer for Og-294 atoms in a pedagogical interaction box.",
   "main": "main.js",
   "author": "ZCode",
   "license": "MIT",
+  "keywords": [
+    "oganesson",
+    "threejs",
+    "electron",
+    "atomic-visualization",
+    "science-education"
+  ],
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "check": "node --check main.js && node --check renderer.js"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
   },
   "devDependencies": {
-    "electron": "^31.0.0"
+    "electron": "^42.5.0"
   }
 }

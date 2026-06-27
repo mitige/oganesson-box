@@ -1,551 +1,162 @@
-// =============================================================
-//  Oganesson Box — rendu 3D + physique + structure subatomique
-//  Three.js (modules via importmap dans index.html)
-//
-//  Niveaux de détail révélés au zoom :
-//    L0  Atome        : sphère émissive rouge + halo (vue par défaut)
-//    L1  Noyau        : protons (rouge vif) + neutrons (gris chaud)
-//                       + électrons (points brillants) en orbite
-//    L2  Quarks       : chaque nucléon se décompose en 3 quarks
-//                       (u rouge, d vert, b rouge) reliés par gluons
-// =============================================================
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-// ---------- Configuration (pilotée par l'UI) ----------
+const OGANESSON_294 = Object.freeze({
+  symbol: 'Og',
+  atomicNumber: 118,
+  massNumber: 294,
+  protons: 118,
+  neutrons: 176,
+  electrons: 118,
+  electronShells: [2, 8, 18, 32, 32, 18, 8],
+  upQuarks: 412,
+  downQuarks: 470
+});
+
+const DETAIL = Object.freeze({
+  ATOMS: 0,
+  ELECTRONS: 1,
+  NUCLEONS: 2,
+  QUARKS: 3
+});
+
+const DETAIL_LABELS = ['Atoms', 'Electron shells', 'Nucleons', 'Quarks'];
+const BOX_HALF = 12;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 const config = {
-  atomCount: 28,
-  atomRadius: 0.55,
-  sigma: 1.9,
-  epsilon: 1.0,
-  repulsion: 1.0,
-  temperature: 1.0,
-  damping: 0.995,
-  glow: 0.8,
-  autoRotate: true
+  atomCount: 12,
+  atomRadius: 1.05,
+  nucleusRadius: 0.28,
+  sigma: 2.28,
+  epsilon: 0.7,
+  temperature: 0.65,
+  damping: 0.992,
+  contrast: 0.55,
+  autoRotate: false
 };
 
-const BOX_SIZE = 11;
-const HALF = BOX_SIZE - config.atomRadius;
-
-// ---------- Scene ----------
+const sceneHost = document.getElementById('scene');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x06030a);
-scene.fog = new THREE.FogExp2(0x06030a, 0.018);
+scene.background = new THREE.Color(0x0b0d10);
+scene.fog = new THREE.FogExp2(0x0b0d10, 0.018);
 
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.05, 180);
 camera.position.set(20, 13, 22);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
-document.getElementById('scene').appendChild(renderer.domElement);
+renderer.toneMappingExposure = 0.92;
+sceneHost.appendChild(renderer.domElement);
 
-// ---------- Contrôles caméra ----------
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.06;
-controls.minDistance = 1.5;   // zoom très proche pour révéler les quarks
-controls.maxDistance = 60;
+controls.dampingFactor = 0.065;
+controls.minDistance = 2.8;
+controls.maxDistance = 58;
 controls.autoRotate = config.autoRotate;
-controls.autoRotateSpeed = 0.45;
+controls.autoRotateSpeed = 0.32;
 
-// ---------- Lumières ----------
-scene.add(new THREE.AmbientLight(0x331122, 0.6));
-
-const keyLight = new THREE.PointLight(0xff2a2a, 120, 80, 2);
-keyLight.position.set(12, 14, 10);
+scene.add(new THREE.HemisphereLight(0xbfc7d1, 0x161b21, 1.45));
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+keyLight.position.set(8, 14, 10);
 scene.add(keyLight);
-
-const rimLight = new THREE.PointLight(0xff5544, 60, 80, 2);
-rimLight.position.set(-14, -6, -12);
-scene.add(rimLight);
-
-const fillLight = new THREE.DirectionalLight(0xffccaa, 0.25);
-fillLight.position.set(0, 20, 0);
-scene.add(fillLight);
-
-// ---------- La boîte (parois de verre) ----------
-const boxGroup = new THREE.Group();
-scene.add(boxGroup);
-
-const glassGeo = new THREE.BoxGeometry(BOX_SIZE * 2, BOX_SIZE * 2, BOX_SIZE * 2);
-const glassMat = new THREE.MeshPhysicalMaterial({
-  color: 0x2a0a12,
-  metalness: 0.0,
-  roughness: 0.05,
-  transmission: 0.92,
-  thickness: 1.2,
-  transparent: true,
-  opacity: 0.10,
-  side: THREE.BackSide,
-  ior: 1.4,
-  clearcoat: 1.0,
-  clearcoatRoughness: 0.1
-});
-const glassBox = new THREE.Mesh(glassGeo, glassMat);
-boxGroup.add(glassBox);
-
-const edges = new THREE.EdgesGeometry(glassGeo);
-const edgeMat = new THREE.LineBasicMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.55 });
-const edgeLines = new THREE.LineSegments(edges, edgeMat);
-boxGroup.add(edgeLines);
-
-const floorGeo = new THREE.CircleGeometry(BOX_SIZE * 2.2, 64);
-const floorMat = new THREE.MeshBasicMaterial({
-  color: 0xff1a1a, transparent: true, opacity: 0.10, side: THREE.DoubleSide
-});
-const floor = new THREE.Mesh(floorGeo, floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.position.y = -BOX_SIZE - 0.01;
-scene.add(floor);
-
-// ---------- Poussière atmosphérique ----------
-const dustCount = 350;
-const dustGeo = new THREE.BufferGeometry();
-const dustPos = new Float32Array(dustCount * 3);
-for (let i = 0; i < dustCount; i++) {
-  dustPos[i * 3]     = (Math.random() - 0.5) * BOX_SIZE * 3.5;
-  dustPos[i * 3 + 1] = (Math.random() - 0.5) * BOX_SIZE * 3.5;
-  dustPos[i * 3 + 2] = (Math.random() - 0.5) * BOX_SIZE * 3.5;
-}
-dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-const dustMat = new THREE.PointsMaterial({
-  color: 0xff6644, size: 0.06, transparent: true, opacity: 0.5,
-  blending: THREE.AdditiveBlending, depthWrite: false
-});
-const dust = new THREE.Points(dustGeo, dustMat);
-scene.add(dust);
-
-// =============================================================
-//  Structure subatomique de l'oganesson (Z=118, N=118 approx)
-//  Og-294 : 118 protons, ~176 neutrons. Pour la lisibilité on
-//  compacte visuellement : un noyau dense + quelques électrons.
-// =============================================================
-const OGANESSON = {
-  Z: 118,            // protons / électrons
-  neutrons: 28       // neutrons visuels (compacté pour la lisibilité)
-};
-
-// Palette quarks
-const QUARK = {
-  up:   new THREE.Color(0xff3b3b),   // u — rouge
-  down: new THREE.Color(0x36d77f),   // d — vert
-  btm:  new THREE.Color(0xff8a3b)    // b — bottom (Og est lourd) / orange
-};
-
-const COLOR_CORE = new THREE.Color(0x5a0000);
-const COLOR_GLOW = new THREE.Color(0xff1e1e);
-const COLOR_HOT  = new THREE.Color(0xff7a5a);
+const sideLight = new THREE.PointLight(0x8aa6c7, 30, 70, 2);
+sideLight.position.set(-13, 3, -9);
+scene.add(sideLight);
 
 const atomGroup = new THREE.Group();
 scene.add(atomGroup);
 
-const atomGeo = new THREE.SphereGeometry(config.atomRadius, 48, 48);
-const haloTex = makeRadialTexture();
+const boxGroup = new THREE.Group();
+scene.add(boxGroup);
 
-const atoms = []; // structures atomiques complètes
-
-// ---------- Géométries réutilisées ----------
-const protonGeo  = new THREE.SphereGeometry(0.11, 20, 20);
-const neutronGeo = new THREE.SphereGeometry(0.11, 20, 20);
-const electronGeo = new THREE.SphereGeometry(0.055, 14, 14);
-const quarkGeo   = new THREE.SphereGeometry(0.045, 12, 12);
-
-const protonMat = new THREE.MeshStandardMaterial({
-  color: 0xff2a2a, emissive: 0xff0000, emissiveIntensity: 2.0,
-  metalness: 0.2, roughness: 0.35
+const boxGeometry = new THREE.BoxGeometry(BOX_HALF * 2, BOX_HALF * 2, BOX_HALF * 2);
+const boxFaceMaterial = new THREE.MeshBasicMaterial({
+  color: 0x9aa6b2,
+  transparent: true,
+  opacity: 0.035,
+  side: THREE.BackSide,
+  depthWrite: false
 });
-const neutronMat = new THREE.MeshStandardMaterial({
-  color: 0x9a8a86, emissive: 0x44332e, emissiveIntensity: 0.5,
-  metalness: 0.3, roughness: 0.5
-});
-const electronMat = new THREE.MeshStandardMaterial({
-  color: 0xfff0e8, emissive: 0xff6a3a, emissiveIntensity: 3.0,
-  metalness: 0.0, roughness: 0.2
-});
-const quarkMats = {
-  up:   new THREE.MeshStandardMaterial({ color: QUARK.up, emissive: QUARK.up, emissiveIntensity: 1.8, roughness: 0.4 }),
-  down: new THREE.MeshStandardMaterial({ color: QUARK.down, emissive: QUARK.down, emissiveIntensity: 1.8, roughness: 0.4 }),
-  btm:  new THREE.MeshStandardMaterial({ color: QUARK.btm, emissive: QUARK.btm, emissiveIntensity: 1.8, roughness: 0.4 })
-};
+boxGroup.add(new THREE.Mesh(boxGeometry, boxFaceMaterial));
 
-// ---------- Création d'un atome complet ----------
-function createAtom(x, y, z) {
-  // --- Niveau 0 : l'atome (sphère + halo) ---
-  const mat = new THREE.MeshStandardMaterial({
-    color: COLOR_CORE.clone(),
-    emissive: COLOR_GLOW.clone(),
-    emissiveIntensity: 2.4,
-    metalness: 0.15,
-    roughness: 0.32
-  });
-  const mesh = new THREE.Mesh(atomGeo, mat);
-  mesh.position.set(x, y, z);
-
-  const glowMat = new THREE.SpriteMaterial({
-    map: haloTex,
-    color: COLOR_HOT.clone(),
-    transparent: true, opacity: 0.85,
-    blending: THREE.AdditiveBlending, depthWrite: false
-  });
-  const glow = new THREE.Sprite(glowMat);
-  glow.scale.set(config.atomRadius * 6, config.atomRadius * 6, 1);
-  mesh.add(glow);
-
-  // Conteneur pour le noyau (L1) — reste au centre de l'atome
-  const nucleusGroup = new THREE.Group();
-  mesh.add(nucleusGroup);
-
-  // --- Niveau 1 : noyau (protons + neutrons) ---
-  const nucleons = [];
-  const nProtons = OGANESSON.Z;
-  const nNeutrons = OGANESSON.neutrons;
-
-  // On génère des positions compactes pseudo-aléatoires dans une sphère
-  for (let p = 0; p < nProtons; p++) {
-    const pos = randomInSphere(0.42);
-    const m = new THREE.Mesh(protonGeo, protonMat);
-    m.position.copy(pos);
-    m.userData.spin = Math.random() * Math.PI * 2;
-    m.userData.spinAxis = new THREE.Vector3(Math.random(), Math.random(), Math.random()).normalize();
-    nucleusGroup.add(m);
-    nucleons.push({ mesh: m, type: 'proton', basePos: pos.clone() });
-  }
-  for (let n = 0; n < nNeutrons; n++) {
-    const pos = randomInSphere(0.42);
-    const m = new THREE.Mesh(neutronGeo, neutronMat);
-    m.position.copy(pos);
-    m.userData.spin = Math.random() * Math.PI * 2;
-    m.userData.spinAxis = new THREE.Vector3(Math.random(), Math.random(), Math.random()).normalize();
-    nucleusGroup.add(m);
-    nucleons.push({ mesh: m, type: 'neutron', basePos: pos.clone() });
-  }
-
-  // --- Niveau 2 : quarks (3 par nucléon, mais on n'en génère que pour
-  //     un sous-ensemble pour la lisibilité/perf — le noyau visible) ---
-  const quarkCount = 12; // 4 nucléons × 3 quarks
-  const quarks = [];
-  for (let i = 0; i < quarkCount; i++) {
-    const type = (i % 3 === 0) ? 'up' : (i % 3 === 1) ? 'down' : 'btm';
-    const m = new THREE.Mesh(quarkGeo, quarkMats[type]);
-    m.visible = false;
-    nucleusGroup.add(m);
-    const angle = (i / quarkCount) * Math.PI * 2;
-    quarks.push({
-      mesh: m,
-      angle,
-      radius: 0.18 + Math.random() * 0.06,
-      speed: 0.8 + Math.random() * 1.2,
-      tilt: (Math.random() - 0.5) * 0.6
-    });
-  }
-
-  // --- Niveau 1 : électrons en orbite ---
-  const electrons = [];
-  const nElectrons = 12; // compacté pour la lisibilité
-  for (let e = 0; e < nElectrons; e++) {
-    const m = new THREE.Mesh(electronGeo, electronMat);
-    const shell = 1 + (e % 3);             // couches K, L, M
-    const radius = shell * 0.35 + 0.15;
-    const tiltX = (Math.random() - 0.5) * 1.2;
-    const tiltZ = (Math.random() - 0.5) * 1.2;
-    const phase = Math.random() * Math.PI * 2;
-    const speed = 3.0 / shell + Math.random();
-    m.userData = { shell, radius, tiltX, tiltZ, phase, speed };
-    mesh.add(m);
-    electrons.push(m);
-
-    // petite traînée orbitale (cercle)
-    if (e < 6) {
-      const ringGeo = new THREE.RingGeometry(radius - 0.008, radius + 0.008, 64);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xff5544, transparent: true, opacity: 0.15,
-        side: THREE.DoubleSide
-      });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = tiltX;
-      ring.rotation.z = tiltZ;
-      ring.visible = false;
-      mesh.add(ring);
-      m.userData.ring = ring;
-    }
-  }
-
-  atomGroup.add(mesh);
-
-  atoms.push({
-    mesh, glow, glowMat, mat,
-    nucleusGroup, nucleons, quarks, electrons,
-    vel: new THREE.Vector3(
-      (Math.random() - 0.5) * 0.4 * config.temperature,
-      (Math.random() - 0.5) * 0.4 * config.temperature,
-      (Math.random() - 0.5) * 0.4 * config.temperature
-    )
-  });
-}
-
-function randomInSphere(r) {
-  let v;
-  do {
-    v = new THREE.Vector3(
-      (Math.random() - 0.5) * 2,
-      (Math.random() - 0.5) * 2,
-      (Math.random() - 0.5) * 2
-    );
-  } while (v.lengthSq() > 1);
-  return v.multiplyScalar(r);
-}
-
-function spawnAtoms(n) {
-  while (atoms.length) {
-    const a = atoms.pop();
-    atomGroup.remove(a.mesh);
-    a.mat.dispose();
-    a.glowMat.dispose();
-  }
-  for (let i = 0; i < n; i++) {
-    const p = randomPointInBox();
-    createAtom(p.x, p.y, p.z);
-  }
-}
-
-function randomPointInBox() {
-  const m = config.atomRadius * 1.5;
-  return new THREE.Vector3(
-    (Math.random() - 0.5) * (HALF * 2 - m) * 0.8,
-    (Math.random() - 0.5) * (HALF * 2 - m) * 0.8,
-    (Math.random() - 0.5) * (HALF * 2 - m) * 0.8
-  );
-}
-
-// Texture radiale pour le halo
-function makeRadialTexture() {
-  const s = 128;
-  const c = document.createElement('canvas');
-  c.width = c.height = s;
-  const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  g.addColorStop(0.0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.2, 'rgba(255,90,60,0.9)');
-  g.addColorStop(0.5, 'rgba(255,30,30,0.4)');
-  g.addColorStop(1.0, 'rgba(120,0,0,0.0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, s, s);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-// ---------- Post-traitement (bloom) ----------
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-
-const bloom = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  config.glow, 0.7, 0.15
+const boxEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(boxGeometry),
+  new THREE.LineBasicMaterial({ color: 0x9aa6b2, transparent: true, opacity: 0.42 })
 );
-composer.addPass(bloom);
-composer.addPass(new OutputPass());
+boxGroup.add(boxEdges);
 
-// ---------- Physique : Lennard-Jones adouci ----------
-const tmpDir = new THREE.Vector3();
+const grid = new THREE.GridHelper(BOX_HALF * 2, 12, 0x4b5563, 0x252c34);
+grid.position.y = -BOX_HALF;
+grid.material.transparent = true;
+grid.material.opacity = 0.38;
+scene.add(grid);
 
-function physicsStep(dt) {
-  const n = atoms.length;
-  const sigma = config.sigma;
-  const eps = config.epsilon;
-  const cutoff = sigma * 2.5;
-  const cutoff2 = cutoff * cutoff;
+const envelopeGeometry = new THREE.SphereGeometry(config.atomRadius, 40, 24);
+const protonGeometry = new THREE.SphereGeometry(0.027, 10, 8);
+const neutronGeometry = new THREE.SphereGeometry(0.026, 10, 8);
+const electronGeometry = new THREE.SphereGeometry(0.018, 8, 6);
+const quarkGeometry = new THREE.SphereGeometry(0.011, 8, 6);
 
-  for (let i = 0; i < n; i++) atoms[i].force = new THREE.Vector3();
+const protonMaterial = new THREE.MeshStandardMaterial({
+  color: 0xd85c4a,
+  emissive: 0x4a140d,
+  emissiveIntensity: 0.18,
+  roughness: 0.48,
+  metalness: 0.05
+});
+const neutronMaterial = new THREE.MeshStandardMaterial({
+  color: 0xa8adb4,
+  emissive: 0x15171a,
+  emissiveIntensity: 0.08,
+  roughness: 0.62,
+  metalness: 0.03
+});
+const electronMaterial = new THREE.MeshStandardMaterial({
+  color: 0x76c6d7,
+  emissive: 0x173c45,
+  emissiveIntensity: 0.35,
+  roughness: 0.25
+});
+const upQuarkMaterial = new THREE.MeshStandardMaterial({
+  color: 0xe3b55f,
+  emissive: 0x4b3510,
+  emissiveIntensity: 0.24,
+  roughness: 0.35
+});
+const downQuarkMaterial = new THREE.MeshStandardMaterial({
+  color: 0x8da7ff,
+  emissive: 0x1d2b62,
+  emissiveIntensity: 0.24,
+  roughness: 0.35
+});
+const shellMaterial = new THREE.LineBasicMaterial({
+  color: 0x607080,
+  transparent: true,
+  opacity: 0.23
+});
 
-  for (let i = 0; i < n; i++) {
-    const ai = atoms[i];
-    for (let j = i + 1; j < n; j++) {
-      const aj = atoms[j];
-      tmpDir.subVectors(ai.mesh.position, aj.mesh.position);
-      const r2 = tmpDir.lengthSq();
-      if (r2 > cutoff2 || r2 < 1e-6) continue;
+const tmpVec = new THREE.Vector3();
+const tmpVecB = new THREE.Vector3();
+const tmpMatrix = new THREE.Matrix4();
+const tmpQuaternion = new THREE.Quaternion();
+const tmpScale = new THREE.Vector3(1, 1, 1);
+const tmpEuler = new THREE.Euler();
 
-      const r = Math.sqrt(r2);
-      const sr  = sigma / r;
-      const sr6 = sr ** 6;
-      const sr12 = sr6 * sr6;
-      let fmag = (24 * eps / r) * (2 * sr12 - sr6) * config.repulsion;
-      fmag = Math.max(-40, Math.min(40, fmag));
+const baseNucleons = createNucleonLayout();
+const baseElectrons = createElectronLayout();
+const baseQuarks = createQuarkLayout(baseNucleons);
 
-      tmpDir.multiplyScalar(fmag / r);
-      ai.force.add(tmpDir);
-      aj.force.sub(tmpDir);
-    }
-  }
+const atoms = [];
+let currentDetail = -1;
+let frames = 0;
+let lastFpsTime = performance.now();
 
-  const restitution = 0.9;
-  for (let i = 0; i < n; i++) {
-    const a = atoms[i];
-    const p = a.mesh.position;
-
-    a.vel.x += (Math.random() - 0.5) * 0.02 * config.temperature;
-    a.vel.y += (Math.random() - 0.5) * 0.02 * config.temperature;
-    a.vel.z += (Math.random() - 0.5) * 0.02 * config.temperature;
-
-    a.vel.addScaledVector(a.force, dt);
-    a.vel.multiplyScalar(config.damping);
-
-    const vmax = 30;
-    if (a.vel.lengthSq() > vmax * vmax) a.vel.setLength(vmax);
-
-    p.addScaledVector(a.vel, dt);
-
-    ['x', 'y', 'z'].forEach(axis => {
-      if (p[axis] > HALF) {
-        p[axis] = HALF;
-        a.vel[axis] = -Math.abs(a.vel[axis]) * restitution;
-      } else if (p[axis] < -HALF) {
-        p[axis] = -HALF;
-        a.vel[axis] = Math.abs(a.vel[axis]) * restitution;
-      }
-    });
-  }
-}
-
-// =============================================================
-//  Gestion des niveaux de détail selon le zoom
-// =============================================================
-// Seuils de distance caméra->cible pour basculer de niveau
-const LOD = {
-  LEVEL_ATOM: 0,    // vue par défaut : atomes
-  LEVEL_NUCLEUS: 1,  // protons/neutrons + électrons
-  LEVEL_QUARK: 2,   // quarks
-  // distances de la cible OrbitControls
-  dNucleus: 5.5,    // < 5.5  -> noyau
-  dQuark: 2.6       // < 2.6  -> quarks
-};
-
-let currentLevel = LOD.LEVEL_ATOM;
-
-function computeLevel() {
-  const dist = controls.getDistance();
-  if (dist < LOD.dQuark) return LOD.LEVEL_QUARK;
-  if (dist < LOD.dNucleus) return LOD.LEVEL_NUCLEUS;
-  return LOD.LEVEL_ATOM;
-}
-
-function applyLevel(level) {
-  if (level === currentLevel) return;
-  currentLevel = level;
-
-  for (const a of atoms) {
-    const showAtom    = (level === LOD.LEVEL_ATOM);
-    const showNucleus = (level >= LOD.LEVEL_NUCLEUS);
-    const showQuarks  = (level === LOD.LEVEL_QUARK);
-    const showElectrons = (level >= LOD.LEVEL_NUCLEUS);
-
-    // L'atome "enveloppe" : transparent puis masqué quand on zoome dedans
-    a.mesh.visible = true; // le group reste, c'est la sphère qui change
-    a.mat.opacity = showAtom ? 1.0 : 0.0;
-    a.mat.transparent = !showAtom;
-    a.glow.visible = showAtom;
-
-    // noyau
-    a.nucleusGroup.visible = showNucleus;
-
-    // quarks
-    for (const q of a.quarks) q.mesh.visible = showQuarks;
-
-    // électrons + anneaux
-    for (const e of a.electrons) {
-      e.visible = showElectrons;
-      if (e.userData.ring) e.userData.ring.visible = showElectrons;
-    }
-  }
-
-  // indicateur UI
-  const el = document.getElementById('levelLabel');
-  if (el) {
-    el.textContent = ['Atoms', 'Nucleus & Electrons', 'Quarks'][level];
-    el.dataset.level = level;
-  }
-}
-
-// ---------- Boucle d'animation ----------
-const clock = new THREE.Clock();
-const tmpE = new THREE.Vector3();
-
-function animate() {
-  requestAnimationFrame(animate);
-  const rawDt = clock.getDelta();
-  const dt = Math.min(rawDt, 0.033);
-
-  const substeps = 2;
-  for (let s = 0; s < substeps; s++) physicsStep(dt / substeps);
-
-  // niveau de détail selon le zoom
-  applyLevel(computeLevel());
-
-  const t = clock.elapsedTime;
-
-  // animation subatomique
-  for (const a of atoms) {
-    const speed = a.vel.length();
-    const heat = Math.min(1, speed / 6);
-    a.mat.emissiveIntensity = 2.0 + heat * 3.0;
-    a.mat.emissive.lerpColors(COLOR_GLOW, COLOR_HOT, heat);
-    a.glowMat.opacity = 0.6 + heat * 0.4;
-
-    // électrons en orbite
-    for (const e of a.electrons) {
-      if (!e.visible) continue;
-      const u = e.userData;
-      const ang = u.phase + t * u.speed;
-      tmpE.set(
-        Math.cos(ang) * u.radius,
-        Math.sin(t * 0.7 + u.tiltX * 3) * u.radius * 0.3,
-        Math.sin(ang) * u.radius
-      );
-      // applique l'inclinaison
-      const m = new THREE.Matrix4();
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(u.tiltX, 0, u.tiltZ));
-      tmpE.applyQuaternion(q);
-      e.position.copy(tmpE);
-    }
-
-    // nucléons : léger jitter + spin
-    for (const ncl of a.nucleons) {
-      ncl.mesh.position.x = ncl.basePos.x + Math.sin(t * 2 + ncl.mesh.userData.spin) * 0.015;
-      ncl.mesh.position.y = ncl.basePos.y + Math.cos(t * 1.8 + ncl.mesh.userData.spin) * 0.015;
-      ncl.mesh.rotateOnAxis(ncl.mesh.userData.spinAxis, dt * 0.5);
-    }
-
-    // quarks : orbite rapide autour du centre du noyau
-    for (const q of a.quarks) {
-      if (!q.mesh.visible) continue;
-      const ang = q.angle + t * q.speed;
-      q.mesh.position.set(
-        Math.cos(ang) * q.radius,
-        Math.sin(ang * 1.3 + q.tilt) * q.radius * 0.5,
-        Math.sin(ang) * q.radius
-      );
-    }
-  }
-
-  dust.rotation.y += dt * 0.02;
-  dust.rotation.x += dt * 0.01;
-
-  controls.update();
-  composer.render();
-}
-
-// ---------- UI ----------
 const ui = {
-  panel: document.getElementById('panel'),
   count: document.getElementById('count'),
   countVal: document.getElementById('countVal'),
   temp: document.getElementById('temp'),
@@ -556,57 +167,495 @@ const ui = {
   glowVal: document.getElementById('glowVal'),
   rotate: document.getElementById('rotate'),
   reset: document.getElementById('reset'),
+  levelLabel: document.getElementById('levelLabel'),
   fps: document.getElementById('fps')
 };
 
-ui.count.addEventListener('input', e => {
-  config.atomCount = +e.target.value;
-  ui.countVal.textContent = config.atomCount;
-  spawnAtoms(config.atomCount);
-});
-ui.temp.addEventListener('input', e => {
-  config.temperature = +e.target.value;
-  ui.tempVal.textContent = config.temperature.toFixed(2);
-});
-ui.inter.addEventListener('input', e => {
-  config.epsilon = +e.target.value;
-  ui.interVal.textContent = config.epsilon.toFixed(2);
-});
-ui.glow.addEventListener('input', e => {
-  config.glow = +e.target.value;
-  ui.glowVal.textContent = config.glow.toFixed(2);
-  bloom.strength = config.glow;
-});
-ui.rotate.addEventListener('click', () => {
-  ui.rotate.classList.toggle('on');
-  config.autoRotate = ui.rotate.classList.contains('on');
+function createNucleonLayout() {
+  const positions = fibonacciBall(OGANESSON_294.protons + OGANESSON_294.neutrons, config.nucleusRadius);
+  const nucleons = [];
+  let protons = 0;
+  let neutrons = 0;
+
+  for (let i = 0; i < positions.length; i += 1) {
+    const targetProtons = Math.round(((i + 1) * OGANESSON_294.protons) / positions.length);
+    const isProton = protons < targetProtons || neutrons >= OGANESSON_294.neutrons;
+    if (isProton) protons += 1;
+    else neutrons += 1;
+
+    nucleons.push({
+      type: isProton ? 'proton' : 'neutron',
+      position: positions[i],
+      phase: i * 0.39,
+      jitter: 0.0035 + (i % 7) * 0.0006
+    });
+  }
+
+  return nucleons;
+}
+
+function createElectronLayout() {
+  const electrons = [];
+  const shellCount = OGANESSON_294.electronShells.length;
+  const inner = 0.43;
+  const outer = 0.98;
+
+  OGANESSON_294.electronShells.forEach((count, shellIndex) => {
+    const radius = inner + ((outer - inner) * shellIndex) / Math.max(1, shellCount - 1);
+    for (let i = 0; i < count; i += 1) {
+      const phase = (i / count) * Math.PI * 2 + shellIndex * 0.41;
+      tmpEuler.set(
+        (shellIndex * 0.31 + i * 0.17) % Math.PI,
+        (shellIndex * 0.19 + i * 0.11) % Math.PI,
+        (shellIndex * 0.23 + i * 0.07) % Math.PI
+      );
+      electrons.push({
+        shell: shellIndex,
+        radius,
+        phase,
+        speed: 0.18 + shellIndex * 0.025 + (i % 5) * 0.01,
+        plane: new THREE.Quaternion().setFromEuler(tmpEuler)
+      });
+    }
+  });
+
+  return electrons;
+}
+
+function createQuarkLayout(nucleons) {
+  const up = [];
+  const down = [];
+  const offsetRadius = 0.018;
+
+  nucleons.forEach((nucleon, nucleonIndex) => {
+    const types = nucleon.type === 'proton' ? ['up', 'up', 'down'] : ['up', 'down', 'down'];
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i / 3) * Math.PI * 2 + nucleonIndex * 0.071;
+      const record = {
+        parent: nucleon.position,
+        offset: new THREE.Vector3(
+          Math.cos(angle) * offsetRadius,
+          Math.sin(angle * 1.7) * offsetRadius * 0.58,
+          Math.sin(angle) * offsetRadius
+        ),
+        phase: nucleonIndex * 0.13 + i * 1.9,
+        speed: 1.1 + ((nucleonIndex + i) % 9) * 0.025
+      };
+
+      if (types[i] === 'up') up.push(record);
+      else down.push(record);
+    }
+  });
+
+  return { up, down };
+}
+
+function fibonacciBall(count, radius) {
+  const points = [];
+  for (let i = 0; i < count; i += 1) {
+    const t = (i + 0.5) / count;
+    const y = 1 - 2 * t;
+    const radial = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = i * GOLDEN_ANGLE;
+    const r = radius * Math.cbrt(t);
+    points.push(new THREE.Vector3(
+      Math.cos(theta) * radial * r,
+      y * r,
+      Math.sin(theta) * radial * r
+    ));
+  }
+  return points;
+}
+
+function createInstancedMesh(geometry, material, count) {
+  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+function createEnvelopeMaterial(atomIndex) {
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color().setHSL(0.58 + (atomIndex % 5) * 0.015, 0.12, 0.48),
+    emissive: 0x121922,
+    emissiveIntensity: 0.08,
+    roughness: 0.55,
+    metalness: 0.08,
+    transparent: true,
+    opacity: 0.26,
+    depthWrite: false
+  });
+  material.userData.owned = true;
+  return material;
+}
+
+function createShellGuides() {
+  const group = new THREE.Group();
+  const inner = 0.43;
+  const outer = 0.98;
+  const shellCount = OGANESSON_294.electronShells.length;
+
+  OGANESSON_294.electronShells.forEach((_, shellIndex) => {
+    const radius = inner + ((outer - inner) * shellIndex) / Math.max(1, shellCount - 1);
+    const line = createCircleLine(radius);
+    line.rotation.x = Math.PI / 2;
+    line.rotation.z = shellIndex * 0.32;
+    group.add(line);
+
+    if (shellIndex % 2 === 0) {
+      const crossLine = createCircleLine(radius);
+      crossLine.rotation.y = Math.PI / 2;
+      crossLine.rotation.x = shellIndex * 0.18;
+      group.add(crossLine);
+    }
+  });
+
+  return group;
+}
+
+function createCircleLine(radius) {
+  const points = [];
+  const segments = 128;
+  for (let i = 0; i < segments; i += 1) {
+    const angle = (i / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const line = new THREE.LineLoop(geometry, shellMaterial);
+  line.userData.ownedGeometry = true;
+  return line;
+}
+
+function createAtom(position, atomIndex) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+
+  const envelope = new THREE.Mesh(envelopeGeometry, createEnvelopeMaterial(atomIndex));
+  group.add(envelope);
+
+  const shellGuides = createShellGuides();
+  group.add(shellGuides);
+
+  const protonMesh = createInstancedMesh(protonGeometry, protonMaterial, OGANESSON_294.protons);
+  const neutronMesh = createInstancedMesh(neutronGeometry, neutronMaterial, OGANESSON_294.neutrons);
+  const electronMesh = createInstancedMesh(electronGeometry, electronMaterial, OGANESSON_294.electrons);
+  const upQuarkMesh = createInstancedMesh(quarkGeometry, upQuarkMaterial, OGANESSON_294.upQuarks);
+  const downQuarkMesh = createInstancedMesh(quarkGeometry, downQuarkMaterial, OGANESSON_294.downQuarks);
+
+  group.add(protonMesh, neutronMesh, electronMesh, upQuarkMesh, downQuarkMesh);
+  atomGroup.add(group);
+
+  const atom = {
+    group,
+    envelope,
+    shellGuides,
+    protonMesh,
+    neutronMesh,
+    electronMesh,
+    upQuarkMesh,
+    downQuarkMesh,
+    velocity: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.34 * config.temperature,
+      (Math.random() - 0.5) * 0.34 * config.temperature,
+      (Math.random() - 0.5) * 0.34 * config.temperature
+    ),
+    force: new THREE.Vector3(),
+    phase: atomIndex * 0.61
+  };
+
+  updateNucleonMatrices(atom, 0);
+  updateElectronMatrices(atom, 0);
+  updateQuarkMatrices(atom, 0);
+  atoms.push(atom);
+}
+
+function disposeAtom(atom) {
+  atom.group.traverse((object) => {
+    if (object.userData.ownedGeometry && object.geometry) object.geometry.dispose();
+    if (object.material?.userData?.owned) object.material.dispose();
+  });
+  atomGroup.remove(atom.group);
+}
+
+function spawnAtoms(count) {
+  while (atoms.length) disposeAtom(atoms.pop());
+
+  const positions = [];
+  for (let i = 0; i < count; i += 1) {
+    const position = randomPointInBox(positions);
+    positions.push(position);
+    createAtom(position, i);
+  }
+
+  currentDetail = -1;
+  applyDetailLevel(computeDetailLevel());
+}
+
+function randomPointInBox(existingPositions) {
+  const margin = config.atomRadius * 1.35;
+  const minDistance = config.sigma * 0.85;
+
+  for (let attempt = 0; attempt < 140; attempt += 1) {
+    const point = new THREE.Vector3(
+      THREE.MathUtils.randFloat(-BOX_HALF + margin, BOX_HALF - margin),
+      THREE.MathUtils.randFloat(-BOX_HALF + margin, BOX_HALF - margin),
+      THREE.MathUtils.randFloat(-BOX_HALF + margin, BOX_HALF - margin)
+    );
+    const ok = existingPositions.every((other) => point.distanceTo(other) >= minDistance);
+    if (ok) return point;
+  }
+
+  return new THREE.Vector3(
+    THREE.MathUtils.randFloat(-BOX_HALF + margin, BOX_HALF - margin),
+    THREE.MathUtils.randFloat(-BOX_HALF + margin, BOX_HALF - margin),
+    THREE.MathUtils.randFloat(-BOX_HALF + margin, BOX_HALF - margin)
+  );
+}
+
+function updateNucleonMatrices(atom, time) {
+  let protonIndex = 0;
+  let neutronIndex = 0;
+
+  for (const nucleon of baseNucleons) {
+    const jitter = Math.sin(time * 1.7 + atom.phase + nucleon.phase) * nucleon.jitter;
+    tmpVec.copy(nucleon.position).addScaledVector(nucleon.position, jitter);
+    tmpQuaternion.identity();
+    tmpMatrix.compose(tmpVec, tmpQuaternion, tmpScale);
+
+    if (nucleon.type === 'proton') {
+      atom.protonMesh.setMatrixAt(protonIndex, tmpMatrix);
+      protonIndex += 1;
+    } else {
+      atom.neutronMesh.setMatrixAt(neutronIndex, tmpMatrix);
+      neutronIndex += 1;
+    }
+  }
+
+  atom.protonMesh.instanceMatrix.needsUpdate = true;
+  atom.neutronMesh.instanceMatrix.needsUpdate = true;
+}
+
+function updateElectronMatrices(atom, time) {
+  baseElectrons.forEach((electron, index) => {
+    const angle = electron.phase + time * electron.speed + atom.phase * 0.21;
+    tmpVec.set(
+      Math.cos(angle) * electron.radius,
+      Math.sin(angle * 0.73 + electron.shell) * electron.radius * 0.08,
+      Math.sin(angle) * electron.radius
+    );
+    tmpVec.applyQuaternion(electron.plane);
+    tmpQuaternion.identity();
+    tmpMatrix.compose(tmpVec, tmpQuaternion, tmpScale);
+    atom.electronMesh.setMatrixAt(index, tmpMatrix);
+  });
+
+  atom.electronMesh.instanceMatrix.needsUpdate = true;
+}
+
+function updateQuarkMatrices(atom, time) {
+  baseQuarks.up.forEach((quark, index) => {
+    writeQuarkMatrix(atom.upQuarkMesh, index, quark, time, atom.phase);
+  });
+  baseQuarks.down.forEach((quark, index) => {
+    writeQuarkMatrix(atom.downQuarkMesh, index, quark, time, atom.phase);
+  });
+
+  atom.upQuarkMesh.instanceMatrix.needsUpdate = true;
+  atom.downQuarkMesh.instanceMatrix.needsUpdate = true;
+}
+
+function writeQuarkMatrix(mesh, index, quark, time, atomPhase) {
+  const spin = Math.sin(time * quark.speed + quark.phase + atomPhase) * 0.006;
+  tmpVec.copy(quark.parent);
+  tmpVecB.copy(quark.offset).multiplyScalar(1 + spin);
+  tmpVec.add(tmpVecB);
+  tmpQuaternion.identity();
+  tmpMatrix.compose(tmpVec, tmpQuaternion, tmpScale);
+  mesh.setMatrixAt(index, tmpMatrix);
+}
+
+function physicsStep(dt) {
+  const cutoff = config.sigma * 2.8;
+  const cutoffSq = cutoff * cutoff;
+  const wallLimit = BOX_HALF - config.atomRadius;
+
+  atoms.forEach((atom) => atom.force.set(0, 0, 0));
+
+  for (let i = 0; i < atoms.length; i += 1) {
+    for (let j = i + 1; j < atoms.length; j += 1) {
+      const a = atoms[i];
+      const b = atoms[j];
+      tmpVec.subVectors(a.group.position, b.group.position);
+      const rSq = Math.max(tmpVec.lengthSq(), 0.18);
+      if (rSq > cutoffSq) continue;
+
+      const r = Math.sqrt(rSq);
+      const sr = config.sigma / r;
+      const sr6 = sr ** 6;
+      const sr12 = sr6 * sr6;
+      let forceMagnitude = (24 * config.epsilon / r) * (2 * sr12 - sr6);
+      forceMagnitude = THREE.MathUtils.clamp(forceMagnitude, -18, 26);
+
+      tmpVec.multiplyScalar(forceMagnitude / r);
+      a.force.add(tmpVec);
+      b.force.sub(tmpVec);
+    }
+  }
+
+  atoms.forEach((atom) => {
+    atom.velocity.x += (Math.random() - 0.5) * 0.018 * config.temperature;
+    atom.velocity.y += (Math.random() - 0.5) * 0.018 * config.temperature;
+    atom.velocity.z += (Math.random() - 0.5) * 0.018 * config.temperature;
+
+    atom.velocity.addScaledVector(atom.force, dt);
+    atom.velocity.multiplyScalar(config.damping);
+    if (atom.velocity.lengthSq() > 11 * 11) atom.velocity.setLength(11);
+
+    atom.group.position.addScaledVector(atom.velocity, dt);
+
+    ['x', 'y', 'z'].forEach((axis) => {
+      if (atom.group.position[axis] > wallLimit) {
+        atom.group.position[axis] = wallLimit;
+        atom.velocity[axis] = -Math.abs(atom.velocity[axis]) * 0.88;
+      } else if (atom.group.position[axis] < -wallLimit) {
+        atom.group.position[axis] = -wallLimit;
+        atom.velocity[axis] = Math.abs(atom.velocity[axis]) * 0.88;
+      }
+    });
+  });
+}
+
+function computeDetailLevel() {
+  const distance = camera.position.distanceTo(controls.target);
+  if (distance < 5.2) return DETAIL.QUARKS;
+  if (distance < 9.2) return DETAIL.NUCLEONS;
+  if (distance < 17) return DETAIL.ELECTRONS;
+  return DETAIL.ATOMS;
+}
+
+function applyDetailLevel(level) {
+  if (level === currentDetail) return;
+  currentDetail = level;
+
+  atoms.forEach((atom) => {
+    atom.envelope.visible = true;
+    atom.envelope.material.opacity = level === DETAIL.ATOMS ? 0.28 : 0.08;
+    atom.shellGuides.visible = level >= DETAIL.ELECTRONS;
+    atom.electronMesh.visible = level >= DETAIL.ELECTRONS;
+    atom.protonMesh.visible = level >= DETAIL.NUCLEONS;
+    atom.neutronMesh.visible = level >= DETAIL.NUCLEONS;
+    atom.upQuarkMesh.visible = level === DETAIL.QUARKS;
+    atom.downQuarkMesh.visible = level === DETAIL.QUARKS;
+  });
+
+  ui.levelLabel.textContent = DETAIL_LABELS[level];
+}
+
+function applyContrast() {
+  const c = config.contrast;
+  protonMaterial.emissiveIntensity = 0.08 + c * 0.18;
+  neutronMaterial.emissiveIntensity = 0.03 + c * 0.07;
+  electronMaterial.emissiveIntensity = 0.18 + c * 0.52;
+  upQuarkMaterial.emissiveIntensity = 0.1 + c * 0.42;
+  downQuarkMaterial.emissiveIntensity = 0.1 + c * 0.42;
+  atoms.forEach((atom) => {
+    atom.envelope.material.emissiveIntensity = 0.03 + c * 0.1;
+  });
+}
+
+function updateAtomVisuals() {
+  atoms.forEach((atom) => {
+    const speed = atom.velocity.length();
+    const heat = THREE.MathUtils.clamp(speed / 4.5, 0, 1);
+    atom.envelope.material.color.setHSL(0.58 - heat * 0.07, 0.12 + heat * 0.12, 0.45 + heat * 0.08);
+  });
+}
+
+function bindUi() {
+  ui.count.addEventListener('input', (event) => {
+    config.atomCount = Number(event.target.value);
+    ui.countVal.textContent = String(config.atomCount);
+    spawnAtoms(config.atomCount);
+  });
+
+  ui.temp.addEventListener('input', (event) => {
+    config.temperature = Number(event.target.value);
+    ui.tempVal.textContent = config.temperature.toFixed(2);
+  });
+
+  ui.inter.addEventListener('input', (event) => {
+    config.epsilon = Number(event.target.value);
+    ui.interVal.textContent = config.epsilon.toFixed(2);
+  });
+
+  ui.glow.addEventListener('input', (event) => {
+    config.contrast = Number(event.target.value);
+    ui.glowVal.textContent = config.contrast.toFixed(2);
+    applyContrast();
+  });
+
+  ui.rotate.addEventListener('click', toggleRotation);
+  ui.rotate.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleRotation();
+    }
+  });
+
+  ui.reset.addEventListener('click', () => spawnAtoms(config.atomCount));
+}
+
+function toggleRotation() {
+  config.autoRotate = !config.autoRotate;
   controls.autoRotate = config.autoRotate;
-});
-ui.reset.addEventListener('click', () => {
-  spawnAtoms(config.atomCount);
-});
+  ui.rotate.classList.toggle('on', config.autoRotate);
+  ui.rotate.setAttribute('aria-checked', String(config.autoRotate));
+}
 
-// FPS meter
-let frames = 0, lastFpsT = performance.now();
-setInterval(() => {
+function updateFps() {
   const now = performance.now();
-  const fps = (frames * 1000) / (now - lastFpsT);
-  ui.fps.textContent = Math.round(fps) + ' fps';
-  frames = 0;
-  lastFpsT = now;
-}, 1000);
-function countFrame() { frames++; requestAnimationFrame(countFrame); }
-countFrame();
+  const elapsed = now - lastFpsTime;
+  if (elapsed < 750) return;
 
-// ---------- Resize ----------
+  const fps = Math.round((frames * 1000) / elapsed);
+  ui.fps.textContent = `${fps} fps`;
+  frames = 0;
+  lastFpsTime = now;
+}
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.033);
+  const substeps = 2;
+  for (let i = 0; i < substeps; i += 1) physicsStep(dt / substeps);
+
+  const detail = computeDetailLevel();
+  applyDetailLevel(detail);
+
+  const time = clock.elapsedTime;
+  atoms.forEach((atom) => {
+    if (detail >= DETAIL.NUCLEONS) updateNucleonMatrices(atom, time);
+    if (detail >= DETAIL.ELECTRONS) updateElectronMatrices(atom, time);
+    if (detail === DETAIL.QUARKS) updateQuarkMatrices(atom, time);
+  });
+  updateAtomVisuals();
+
+  controls.update();
+  renderer.render(scene, camera);
+  frames += 1;
+  updateFps();
+}
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------- Démarrage ----------
+bindUi();
+applyContrast();
 spawnAtoms(config.atomCount);
-applyLevel(LOD.LEVEL_ATOM);
 animate();

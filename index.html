@@ -2,43 +2,39 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Oganesson Box</title>
   <style>
     :root {
-      --red: #ff2a2a;
-      --red-soft: #ff6a5a;
-      --red-deep: #8a0010;
-      --bg: #06030a;
-      --glass: rgba(40, 8, 14, 0.42);
-      --glass-border: rgba(255, 80, 80, 0.28);
-      --text: #ffe8e6;
-      --text-dim: rgba(255, 200, 195, 0.65);
+      --bg: #0b0d10;
+      --panel: rgba(15, 18, 22, 0.92);
+      --panel-soft: rgba(20, 24, 29, 0.82);
+      --line: rgba(169, 179, 191, 0.22);
+      --line-strong: rgba(169, 179, 191, 0.36);
+      --text: #edf1f5;
+      --muted: #9ca7b4;
+      --quiet: #6f7b88;
+      --proton: #d85c4a;
+      --neutron: #a8adb4;
+      --electron: #76c6d7;
+      --up: #e3b55f;
+      --down: #8da7ff;
+      --accent: #b9c4cf;
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { box-sizing: border-box; }
 
-    html, body {
+    html,
+    body {
       width: 100%;
       height: 100%;
+      margin: 0;
       overflow: hidden;
       background: var(--bg);
       color: var(--text);
-      font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+      font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
       user-select: none;
-    }
-
-    /* Fond dégradé ambiant rougeoyant */
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background:
-        radial-gradient(ellipse at 20% 10%, rgba(180, 20, 30, 0.25), transparent 55%),
-        radial-gradient(ellipse at 80% 90%, rgba(120, 0, 20, 0.30), transparent 55%),
-        radial-gradient(circle at 50% 50%, rgba(255, 60, 60, 0.04), transparent 60%);
-      pointer-events: none;
-      z-index: 0;
     }
 
     #scene {
@@ -46,291 +42,388 @@
       inset: 0;
       z-index: 1;
     }
-    #scene canvas { display: block; }
 
-    /* ---------- En-tête ---------- */
-    .header {
+    #scene canvas {
+      display: block;
+    }
+
+    .topbar {
       position: fixed;
-      top: 24px;
-      left: 28px;
-      z-index: 10;
-      display: none; /* masqué : logo + titre */
-      align-items: center;
-      gap: 14px;
-      pointer-events: none;
-    }
-    .logo {
-      width: 46px; height: 46px;
-      border-radius: 14px;
-      background: radial-gradient(circle at 35% 30%, #ff7a6a, #c40016 60%, #5a0008);
-      box-shadow:
-        0 0 24px rgba(255, 40, 40, 0.7),
-        inset 0 0 12px rgba(255, 200, 200, 0.4);
-      position: relative;
-    }
-    .logo::after {
-      content: "Og";
-      position: absolute;
-      inset: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 12;
+      min-height: 56px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 18px;
-      color: #fff;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.5);
-      letter-spacing: -0.5px;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 12px 20px;
+      background: rgba(11, 13, 16, 0.76);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
     }
-    .title h1 {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      background: linear-gradient(120deg, #fff, var(--red-soft));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 0;
     }
-    .title p {
+
+    .brand h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 680;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .brand span {
+      color: var(--muted);
       font-size: 12px;
-      color: var(--text-dim);
-      margin-top: 2px;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
+      white-space: nowrap;
     }
 
-    /* ---------- Panneau de contrôle ---------- */
-    #panel {
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status b {
+      color: var(--text);
+      font-weight: 620;
+    }
+
+    .side {
       position: fixed;
-      top: 24px;
-      right: 24px;
+      top: 72px;
+      bottom: 24px;
       z-index: 10;
-      width: 290px;
-      padding: 22px 22px 20px;
-      background: var(--glass);
-      backdrop-filter: blur(22px) saturate(140%);
-      -webkit-backdrop-filter: blur(22px) saturate(140%);
-      border: 1px solid var(--glass-border);
-      border-radius: 20px;
-      box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      display: none; /* masqué : Simulation Controls */
-    }
-    #panel::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--red-soft), transparent);
-      opacity: 0.7;
+      width: 292px;
+      padding: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      backdrop-filter: blur(18px);
+      overflow: auto;
     }
 
-    .panel-title {
+    #panel {
+      left: 20px;
+    }
+
+    .model-panel {
+      right: 20px;
+    }
+
+    .section {
+      padding: 0 0 18px;
+      margin: 0 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section:last-child {
+      border-bottom: 0;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section h2 {
+      margin: 0 0 12px;
+      color: var(--accent);
       font-size: 11px;
-      letter-spacing: 2.5px;
+      font-weight: 720;
+      letter-spacing: 0;
       text-transform: uppercase;
-      color: var(--red-soft);
-      margin-bottom: 18px;
     }
 
-    .control { margin-bottom: 16px; }
-    .control:last-child { margin-bottom: 0; }
+    .control {
+      margin: 0 0 16px;
+    }
 
     .control label {
       display: flex;
       justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+      color: var(--muted);
       font-size: 12px;
-      color: var(--text-dim);
-      margin-bottom: 7px;
-      letter-spacing: 0.3px;
+      line-height: 1.35;
     }
+
     .control label b {
       color: var(--text);
-      font-weight: 600;
+      font-weight: 620;
       font-variant-numeric: tabular-nums;
     }
 
     input[type="range"] {
-      -webkit-appearance: none;
-      appearance: none;
       width: 100%;
       height: 4px;
-      border-radius: 4px;
-      background: linear-gradient(90deg, var(--red-deep), rgba(255,255,255,0.08));
+      margin: 0;
+      appearance: none;
+      border-radius: 999px;
+      background: #2a3038;
       outline: none;
     }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 16px; height: 16px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, #ff9080, var(--red));
-      border: 2px solid rgba(255, 230, 225, 0.85);
-      box-shadow: 0 0 12px rgba(255, 40, 40, 0.8);
-      cursor: pointer;
-      transition: transform 0.12s ease;
-    }
-    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.18); }
 
-    /* Toggle */
+    input[type="range"]::-webkit-slider-thumb {
+      width: 15px;
+      height: 15px;
+      appearance: none;
+      border: 2px solid #d5dbe2;
+      border-radius: 50%;
+      background: #11161c;
+      cursor: pointer;
+    }
+
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 4px;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
     }
-    .toggle-row span { font-size: 12px; color: var(--text-dim); }
+
     .switch {
       position: relative;
-      width: 40px; height: 22px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid var(--glass-border);
-      border-radius: 20px;
+      width: 38px;
+      height: 22px;
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: #1b2128;
       cursor: pointer;
-      transition: background 0.25s;
     }
+
     .switch::after {
       content: "";
       position: absolute;
-      top: 2px; left: 2px;
-      width: 16px; height: 16px;
+      top: 3px;
+      left: 3px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      background: #ffd9d4;
-      transition: transform 0.25s cubic-bezier(.5,1.6,.5,1);
+      background: var(--muted);
+      transition: transform 120ms ease, background 120ms ease;
     }
-    .switch.on {
-      background: linear-gradient(90deg, var(--red-deep), var(--red));
-      border-color: var(--red);
-    }
-    .switch.on::after { transform: translateX(18px); }
 
-    /* Bouton reset */
+    .switch.on::after {
+      transform: translateX(16px);
+      background: var(--electron);
+    }
+
     button {
       width: 100%;
-      padding: 11px;
-      margin-top: 6px;
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      background: linear-gradient(180deg, rgba(255,60,60,0.18), rgba(140,0,16,0.12));
+      min-height: 36px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #171d23;
       color: var(--text);
+      font: inherit;
       font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
+      font-weight: 620;
       cursor: pointer;
-      transition: all 0.2s;
     }
+
     button:hover {
-      background: linear-gradient(180deg, rgba(255,60,60,0.35), rgba(180,0,20,0.25));
-      box-shadow: 0 0 22px rgba(255, 40, 40, 0.45);
-      transform: translateY(-1px);
+      background: #202730;
     }
-    button:active { transform: translateY(0); }
 
-    /* ---------- Footer info ---------- */
-    .footer {
-      position: fixed;
-      bottom: 20px;
-      left: 28px;
-      z-index: 10;
-      display: none; /* masqué : badges du bas */
+    .legend {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .legend li,
+    .fact {
+      display: flex;
       align-items: center;
-      gap: 18px;
-      pointer-events: none;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
     }
-    .badge {
-      padding: 8px 14px;
-      background: var(--glass);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      font-size: 11px;
-      letter-spacing: 1px;
-      color: var(--text-dim);
-    }
-    .badge b { color: var(--red-soft); font-weight: 700; }
-    .badge.fps b { color: var(--text); }
 
-    .badge.level b#levelLabel {
+    .fact b {
       color: var(--text);
-      transition: color 0.3s;
+      font-weight: 620;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
     }
 
-    .hint {
+    .dot {
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .dot.proton { background: var(--proton); }
+    .dot.neutron { background: var(--neutron); }
+    .dot.electron { background: var(--electron); }
+    .dot.up { background: var(--up); }
+    .dot.down { background: var(--down); }
+
+    .legend-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .controls-help {
       position: fixed;
-      bottom: 20px;
-      right: 28px;
-      z-index: 10;
-      font-size: 11px;
-      color: var(--text-dim);
-      letter-spacing: 0.8px;
-      pointer-events: none;
+      right: 20px;
+      bottom: 16px;
+      z-index: 11;
+      color: var(--quiet);
+      font-size: 12px;
       text-align: right;
+      pointer-events: none;
+    }
+
+    @media (max-width: 1080px) {
+      .model-panel {
+        display: none;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .status {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .side {
+        top: auto;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: auto;
+        max-height: 42vh;
+      }
+
+      .controls-help {
+        display: none;
+      }
     }
   </style>
 </head>
 <body>
   <div id="scene"></div>
 
-  <!-- En-tête -->
-  <div class="header">
-    <div class="logo"></div>
-    <div class="title">
+  <header class="topbar">
+    <div class="brand">
       <h1>Oganesson Box</h1>
-      <p>Atomic Interaction Visualizer</p>
+      <span>Og-294 scientific visualizer</span>
     </div>
-  </div>
-
-  <!-- Panneau de contrôle -->
-  <div id="panel">
-    <div class="panel-title">Simulation Controls</div>
-
-    <div class="control">
-      <label>Number of atoms <b id="countVal">28</b></label>
-      <input type="range" id="count" min="2" max="80" step="1" value="28" />
+    <div class="status">
+      <span>Detail <b id="levelLabel">Atoms</b></span>
+      <span>Isotope <b>294Og</b></span>
+      <span><b id="fps">-- fps</b></span>
     </div>
+  </header>
 
-    <div class="control">
-      <label>Temperature <b id="tempVal">1.00</b></label>
-      <input type="range" id="temp" min="0" max="3" step="0.05" value="1" />
-    </div>
-
-    <div class="control">
-      <label>Interaction strength <b id="interVal">1.00</b></label>
-      <input type="range" id="inter" min="0" max="3" step="0.05" value="1" />
-    </div>
-
-    <div class="control">
-      <label>Glow (bloom) <b id="glowVal">0.80</b></label>
-      <input type="range" id="glow" min="0" max="3" step="0.05" value="0.8" />
-    </div>
-
-    <div class="control">
-      <div class="toggle-row">
-        <span>Auto-rotate</span>
-        <div class="switch on" id="rotate"></div>
+  <aside id="panel" class="side" aria-label="Simulation controls">
+    <section class="section">
+      <h2>Simulation</h2>
+      <div class="control">
+        <label>Og-294 atoms <b id="countVal">12</b></label>
+        <input type="range" id="count" min="2" max="28" step="1" value="12" />
       </div>
-    </div>
+      <div class="control">
+        <label>Thermal agitation <b id="tempVal">0.65</b></label>
+        <input type="range" id="temp" min="0" max="2.2" step="0.05" value="0.65" />
+      </div>
+      <div class="control">
+        <label>LJ interaction strength <b id="interVal">0.70</b></label>
+        <input type="range" id="inter" min="0" max="2.5" step="0.05" value="0.7" />
+      </div>
+      <div class="control">
+        <label>Particle contrast <b id="glowVal">0.55</b></label>
+        <input type="range" id="glow" min="0" max="1.5" step="0.05" value="0.55" />
+      </div>
+      <div class="control">
+        <div class="toggle-row">
+          <span>Auto-rotate camera</span>
+          <div class="switch" id="rotate" role="switch" aria-checked="false" tabindex="0"></div>
+        </div>
+      </div>
+      <button id="reset" type="button">Regenerate positions</button>
+    </section>
 
-    <button id="reset">Reset</button>
-  </div>
+    <section class="section">
+      <h2>Per Atom</h2>
+      <div class="fact"><span>Protons</span><b>118</b></div>
+      <div class="fact"><span>Neutrons</span><b>176</b></div>
+      <div class="fact"><span>Electrons</span><b>118</b></div>
+      <div class="fact"><span>Quarks</span><b>882</b></div>
+      <div class="fact"><span>Shell occupancy</span><b>2, 8, 18, 32, 32, 18, 8</b></div>
+    </section>
+  </aside>
 
-  <!-- Footer -->
-  <div class="footer">
-    <div class="badge">Element <b>Og · 118</b></div>
-    <div class="badge">Noble gas · synthetic</div>
-    <div class="badge level">View: <b id="levelLabel">Atoms</b></div>
-    <div class="badge fps"><b id="fps">— fps</b></div>
-  </div>
+  <aside class="side model-panel" aria-label="Model notes">
+    <section class="section">
+      <h2>Legend</h2>
+      <ul class="legend">
+        <li><span class="legend-name"><span class="dot proton"></span>Proton</span><span>uud</span></li>
+        <li><span class="legend-name"><span class="dot neutron"></span>Neutron</span><span>udd</span></li>
+        <li><span class="legend-name"><span class="dot electron"></span>Electron</span><span>shell guide</span></li>
+        <li><span class="legend-name"><span class="dot up"></span>Up quark</span><span>+2/3e</span></li>
+        <li><span class="legend-name"><span class="dot down"></span>Down quark</span><span>-1/3e</span></li>
+      </ul>
+    </section>
 
-  <div class="hint">Drag to orbit · Scroll to zoom in & reveal subatomic structure</div>
+    <section class="section">
+      <h2>Model Limits</h2>
+      <p class="note">
+        The box interaction is a softened Lennard-Jones teaching model.
+        Distances, particle sizes, shell paths, and quark spacing are not to scale.
+        Oganesson is synthetic and its chemistry is dominated by relativistic predictions.
+      </p>
+    </section>
 
-  <!-- Three.js via importmap (CDN) -->
+    <section class="section">
+      <h2>Navigation</h2>
+      <p class="note">
+        Drag to orbit. Scroll to move from whole atoms to electron shells,
+        nucleons, and quarks. The full Og-294 inventory exists for every atom.
+      </p>
+    </section>
+  </aside>
+
+  <div class="controls-help">Drag to orbit · Scroll to inspect detail</div>
+
   <script type="importmap">
   {
     "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      "three": "./node_modules/three/build/three.module.js",
+      "three/addons/": "./node_modules/three/examples/jsm/"
     }
   }
   </script>
