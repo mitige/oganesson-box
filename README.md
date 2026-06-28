@@ -5,8 +5,6 @@ atoms (Og, element 118) interacting inside a translucent glass box.
 The atoms are **glowing red**, and their interaction physics is computed in
 real time.
 
-![preview](https://via.placeholder.com/800x200/06030a/ff2a2a?text=Oganesson+Box)
-
 ## Features
 
 * **Real-time 3D rendering** with Three.js
