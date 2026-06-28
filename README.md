@@ -65,7 +65,7 @@ although it is predicted to be more reactive than the others.
 * Light global damping
 * Elastic collisions with restitution `0.9` on all 6 walls
 
-## 🔧 Offline Mode Optional
+## Offline Mode Optional
 
 To run without an internet connection, download Three.js locally and replace
 the import map in `index.html`:
