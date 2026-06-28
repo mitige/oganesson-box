@@ -1,6 +1,6 @@
 # Oganesson Box
 
-Ultra-aesthetic **Electron** desktop application that visualizes **oganesson**
+**Electron** desktop application that visualizes **oganesson**
 atoms (Og, element 118) interacting inside a translucent glass box.
 The atoms are **glowing red**, and their interaction physics is computed in
 real time.
