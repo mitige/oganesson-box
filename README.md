@@ -1,31 +1,32 @@
-# Oganesson Box 🔴
+# Oganesson Box
 
-Application de bureau **Electron** ultra esthétique qui visualise des atomes
-d'**oganesson** (Og, élément 118) interagissant dans une boîte de verre
-translucide. Les atomes sont **rougeoyants** et leur physique d'interaction
-est calculée en temps réel.
+Ultra-aesthetic **Electron** desktop application that visualizes **oganesson**
+atoms (Og, element 118) interacting inside a translucent glass box.
+The atoms are **glowing red**, and their interaction physics is computed in
+real time.
 
 ![preview](https://via.placeholder.com/800x200/06030a/ff2a2a?text=Oganesson+Box)
 
-## ✨ Fonctionnalités
+## Features
 
-- **Rendu 3D temps réel** avec Three.js
-- **Atomes rouges** émissifs avec halo lumineux (sprites additifs)
-- **Post-traitement Bloom** (UnrealBloomPass) pour la lueur néon
-- **Physique d'interaction** : potentiel de Lennard-Jones adouci
-  (répulsion forte + attraction faible, typique d'un gaz noble)
-- **Boîte de verre** translucide (MeshPhysicalMaterial avec transmission)
-- **Poussière atmosphérique** flottante pour l'ambiance
-- **Thermostat** : agitation thermique pilotable
-- **UI glassmorphism** rouge, contrôlée par sliders :
-  - Nombre d'atomes
-  - Température (agitation)
-  - Force d'interaction
-  - Intensité de la lueur (bloom)
-  - Rotation auto de la caméra
-- **Caméra orbitale** : glisser pour tourner, molette pour zoomer
+* **Real-time 3D rendering** with Three.js
+* **Red emissive atoms** with a luminous halo using additive sprites
+* **Bloom post-processing** with UnrealBloomPass for a neon glow effect
+* **Interaction physics**: softened Lennard-Jones potential
+  with strong repulsion and weak attraction, typical of a noble gas
+* **Translucent glass box** using MeshPhysicalMaterial with transmission
+* **Floating atmospheric dust** for extra ambience
+* **Thermostat**: controllable thermal agitation
+* **Red glassmorphism UI**, controlled with sliders:
 
-## 🚀 Installation
+  * Number of atoms
+  * Temperature/agitation
+  * Interaction strength
+  * Glow intensity/bloom
+  * Automatic camera rotation
+* **Orbital camera**: drag to rotate, scroll to zoom
+
+## Installation
 
 ```bash
 cd oganesson-box
@@ -33,39 +34,41 @@ npm install
 npm start
 ```
 
-> Three.js est chargé via CDN (importmap) : une connexion internet est
-> nécessaire au premier lancement. (Voir section hors-ligne ci-dessous.)
+> Three.js is loaded via CDN using an import map: an internet connection is
+> required on first launch. See the offline section below.
 
-## 🎛️ Utilisation
+## Usage
 
-| Contrôle | Action |
-|---|---|
-| Glisser la souris | Orbiter autour de la boîte |
-| Molette | Zoomer |
-| Sliders (panneau droit) | Ajuster la simulation |
-| Réinitialiser | Re-générer les atomes |
+| Control                    | Action                |
+| -------------------------- | --------------------- |
+| Mouse drag                 | Orbit around the box  |
+| Mouse wheel                | Zoom                  |
+| Sliders in the right panel | Adjust the simulation |
+| Reset                      | Regenerate the atoms  |
 
-## 🧪 Détails techniques
+## Technical Details
 
-### Potentiel d'interaction
-On utilise un potentiel de **Lennard-Jones** adouci :
+### Interaction Potential
+
+A softened **Lennard-Jones** potential is used:
 
 $$F = \frac{24\varepsilon}{r}\left[2\left(\frac{\sigma}{r}\right)^{13} - \left(\frac{\sigma}{r}\right)^{7}\right]$$
 
-Avec un **cut-off** à `2.5σ` et un facteur de répulsion majoré pour rendre
-visible la nature « gaz noble » (Og est théoriquement un gaz noble, même si
-son caractère est prédit plus réactif que les autres).
+With a cut-off at `2.5σ` and an increased repulsion factor to make the
+“noble gas” behavior visually noticeable. Og is theoretically a noble gas,
+although it is predicted to be more reactive than the others.
 
-### Stabilité numérique
-- Sous-pas de temps (substeps)
-- Bornage des forces et vitesses
-- Amortissement global léger
-- Collisions élastiques (restitution 0.9) sur les 6 parois
+### Numerical Stability
 
-## 🔧 Mode hors-ligne (optionnel)
+* Time substeps
+* Force and velocity clamping
+* Light global damping
+* Elastic collisions with restitution `0.9` on all 6 walls
 
-Pour fonctionner sans internet, téléchargez Three.js localement et remplacez
-l'importmap dans `index.html` :
+## 🔧 Offline Mode Optional
+
+To run without an internet connection, download Three.js locally and replace
+the import map in `index.html`:
 
 ```html
 <script type="importmap">
@@ -78,17 +81,15 @@ l'importmap dans `index.html` :
 </script>
 ```
 
-## 📁 Structure
+## Structure
 
 ```
 oganesson-box/
-├── package.json      # manifeste Electron
-├── main.js           # processus principal Electron
-├── index.html        # UI + CSS glassmorphism
-├── renderer.js       # moteur 3D + physique
+├── package.json      # Electron manifest
+├── main.js           # Electron main process
+├── index.html        # UI + glassmorphism CSS
+├── renderer.js       # 3D engine + physics
 └── README.md
 ```
 
 ---
-
-Fait avec ❤️ et beaucoup de rouge.
